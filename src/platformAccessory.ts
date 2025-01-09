@@ -1,12 +1,13 @@
 import { Characteristic, type CharacteristicValue, type PlatformAccessory, type Service } from 'homebridge';
-
-import { HttpClient } from './httpClient.js';
+// import axios from 'axios';
+// import { HttpClient } from './httpClient.js';
+import { fetchUnlockStatus, unlockDoor } from './httpClient.js'
 import type { AndrewFrontDoorLockHomebridgePlatform } from './platform.js';
 
 
 export class AndrewFrontDoorLockHomebridgePlatformAccessory {
   private service: Service;
-  private httpClient: HttpClient;
+  // private httpClient: HttpClient;
 
   constructor(
     private readonly platform: AndrewFrontDoorLockHomebridgePlatform,
@@ -30,7 +31,7 @@ export class AndrewFrontDoorLockHomebridgePlatformAccessory {
       .onGet(this.getLockState.bind(this)) 
       .onSet(this.unlockDoor.bind(this));
 
-    this.httpClient = new HttpClient('http://10.0.0.138:5000');
+    // this.httpClient = new HttpClient('http://10.0.0.138:5000');
 
     // setInterval(() => {
     //   const lockState = this.getLockState();
@@ -41,24 +42,34 @@ export class AndrewFrontDoorLockHomebridgePlatformAccessory {
   
   }
 
+  
+
+
   /**
    * Handle "SET" requests from HomeKit
    * These are sent when the user changes the state of an accessory, for example, turning on a Light bulb.
    */
   async getLockState(): Promise<CharacteristicValue> {
     try {
-      const serverResp = await this.httpClient.get<{ unlocked: boolean }>('/get_status');
-      console.log(`Door status: ${serverResp.unlocked ? 'Unlocked' : 'Locked'}`);
-      const status = serverResp.unlocked ? this.platform.Characteristic.LockCurrentState.UNSECURED : this.platform.Characteristic.LockCurrentState.SECURED;
+      const resp = await fetchUnlockStatus();
+      let status = this.platform.Characteristic.LockCurrentState.UNSECURED;
+      if (resp === true) {
+        console.log("UNLOCKED WAS TRUE");
+        status = this.platform.Characteristic.LockCurrentState.UNSECURED;
+      } else if (resp === false) {
+        console.log("UNLOCKED WAS FALSE");
+        status = this.platform.Characteristic.LockCurrentState.SECURED;
+      }
+      console.log(`Door status: ${status}`);
       return status;
     } catch (error) {
       if (error instanceof Error) {
         // Now TypeScript knows `error` is an instance of `Error`
-        console.error(error.message);
+        console.log(`ERROR ${error.message}`);
         const status = this.platform.Characteristic.LockCurrentState.UNKNOWN;
         return status;
       } else {
-        console.error('Unknown error:', error);
+        console.log(`ERROR ${error}`);
         const status = this.platform.Characteristic.LockCurrentState.UNKNOWN;
         return status;
       }
@@ -67,15 +78,16 @@ export class AndrewFrontDoorLockHomebridgePlatformAccessory {
 
   async unlockDoor(value: CharacteristicValue) {
     try {
-      await this.httpClient.get<{ unlocked: boolean }>('/unlock');
+      unlockDoor();
       console.log('Door unlocked');
     } catch (error) {
       if (error instanceof Error) {
         // Now TypeScript knows `error` is an instance of `Error`
-        console.error(error.message);
+        console.log(`ERROR ${error.message}`);
       } else {
-        console.error('Unknown error:', error);
+        console.log(`ERROR ${error}`);
       }
     }
   }
+  
 }
