@@ -31,6 +31,14 @@ export class AndrewFrontDoorLockHomebridgePlatformAccessory {
       .onSet(this.unlockDoor.bind(this));
 
     this.httpClient = new HttpClient('http://10.0.0.138:5000');
+
+    // setInterval(() => {
+    //   const lockState = this.getLockState();
+    //   lockState.then(state => {
+    //     this.service.updateCharacteristic(this.platform.Characteristic.LockCurrentState, state);
+    //   });
+    // }, 10000);
+  
   }
 
   /**
