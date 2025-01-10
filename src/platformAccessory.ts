@@ -43,7 +43,6 @@ export class AndrewFrontDoorLockHomebridgePlatformAccessory {
     const pollState = async (): Promise<void> => {
       try {
         const status = await this.getCurrentState();
-        console.log(`[${new Date().toISOString()}] | POLL | Status is ${status}`);
 
         // Update both target and current state
         this.service.updateCharacteristic(this.platform.Characteristic.LockTargetState, status);
@@ -65,9 +64,7 @@ export class AndrewFrontDoorLockHomebridgePlatformAccessory {
    */
   async getCurrentState(): Promise<CharacteristicValue> {
     try {
-      console.log(`[${new Date().toISOString()}] | MAIN | Getting current state.`);
       const status = await getActualDoorStatus();
-      console.log(`[${new Date().toISOString()}] | MAIN | Current state is ${status}`);
       return status;
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
@@ -80,7 +77,6 @@ export class AndrewFrontDoorLockHomebridgePlatformAccessory {
    * Update the current state of the lock.
    */
   async setCurrentState(value: CharacteristicValue): Promise<void> {
-    console.log(`[${new Date().toISOString()}] | MAIN | Setting current state to ${value}`);
     this.service.updateCharacteristic(this.platform.Characteristic.LockCurrentState, value);
   }
 
@@ -97,10 +93,8 @@ export class AndrewFrontDoorLockHomebridgePlatformAccessory {
    */
   async setTargetState(value: CharacteristicValue): Promise<void> {
     if (value === this.platform.Characteristic.LockTargetState.UNSECURED) {
-      console.log(`[${new Date().toISOString()}] | MAIN | Unlocking the door.`);
       try {
         await unlockDoor();
-        console.log(`[${new Date().toISOString()}] | MAIN | Door unlocked successfully.`);
 
         // Update the current state to Unlocked
         await this.setCurrentState(this.platform.Characteristic.LockCurrentState.UNSECURED);
@@ -109,7 +103,6 @@ export class AndrewFrontDoorLockHomebridgePlatformAccessory {
         console.error(`[${new Date().toISOString()}] | MAIN | Failed to unlock the door: ${errorMessage}`);
       }
     } else if (value === this.platform.Characteristic.LockTargetState.SECURED) {
-      console.log(`[${new Date().toISOString()}] | MAIN | Locking the door.`);
       // Update the current state to Locked
       await this.setCurrentState(this.platform.Characteristic.LockCurrentState.SECURED);
     }

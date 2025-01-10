@@ -11,7 +11,6 @@ const LOCKED = 1;
  */
 export async function getActualDoorStatus(): Promise<number> {
   try {
-    console.log(`[${new Date().toISOString()}] | Calling /get_status`);
     const response = await axios.get(`${BASE_URL}/get_status`);
     
     // Validate response data structure
@@ -21,7 +20,6 @@ export async function getActualDoorStatus(): Promise<number> {
 
     const { unlocked } = response.data;
     const isUnlocked = unlocked === 'true';
-    console.log(`[${new Date().toISOString()}] | Calling /get_status --> ${isUnlocked ? UNLOCKED : LOCKED}`);
     return isUnlocked ? UNLOCKED : LOCKED;
 
   } catch (error) {
@@ -38,7 +36,6 @@ export async function getActualDoorStatus(): Promise<number> {
  */
 export async function unlockDoor(): Promise<void> {
   try {
-    console.log(`[${new Date().toISOString()}] | Calling /unlock`);
     await axios.get(`${BASE_URL}/unlock`);
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
