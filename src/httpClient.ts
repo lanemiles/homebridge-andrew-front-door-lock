@@ -1,46 +1,48 @@
 import axios from 'axios';
 
-export async function fetchUnlockStatus(): Promise<boolean> {
+const BASE_URL = 'http://73.162.135.162:5000';
+const UNLOCKED = 0;
+const LOCKED = 1;
+
+/**
+ * Fetch the unlock status of the door.
+ * @returns {Promise<boolean>} True if unlocked, false otherwise.
+ * @throws {Error} If the request fails or the response is invalid.
+ */
+export async function getActualDoorStatus(): Promise<number> {
   try {
-    const response = await axios.get('http://10.0.0.138:5000/get_status');
-
-    // Ensure the response data is an object
-    if (typeof response.data !== 'object' || response.data === null) {
-      throw new Error('Response data is not an object');
-    }
-
-    // Extract and validate the "unlocked" key
+    console.log(`[${new Date().toISOString()}] | Calling /get_status`);
+    const response = await axios.get(`${BASE_URL}/get_status`);
     
-    console.log(`D is ${response.data}`);
-    console.log(`DU is ${response.data.unlocked}`);
-    console.log(`typeof ${typeof response.data.unlocked}`);
-    const { unlocked } = response.data.unlocked;
-    const retVal = unlocked === 'true' ? true : false;
-    console.log(`retValue ${retVal}`);
-    return retVal;
-  } catch (error) {
-    if (error instanceof Error) {
-    // Re-throw the error for the caller to handle
-      console.log(`Failed to fetch unlock status: ${error.message}`);  
-      throw new Error(`Failed to fetch unlock status: ${error.message}`);
-    } else {
-      console.log('OH NO');
-      throw new Error('Failed bad error');
+    // Validate response data structure
+    if (!response.data || typeof response.data !== 'object') {
+      throw new Error('Invalid response data');
     }
+
+    const { unlocked } = response.data;
+    const isUnlocked = unlocked === 'true';
+    console.log(`[${new Date().toISOString()}] | Calling /get_status --> ${isUnlocked ? UNLOCKED : LOCKED}`);
+    return isUnlocked ? UNLOCKED : LOCKED;
+
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    console.error(`Failed to fetch unlock status: ${errorMessage}`);
+    throw new Error(`Failed to fetch unlock status: ${errorMessage}`);
   }
 }
 
+/**
+ * Unlock the door.
+ * @returns {Promise<void>} Resolves if the operation is successful.
+ * @throws {Error} If the request fails.
+ */
 export async function unlockDoor(): Promise<void> {
   try {
-    await axios.get('http://10.0.0.138:5000/unlock');
+    console.log(`[${new Date().toISOString()}] | Calling /unlock`);
+    await axios.get(`${BASE_URL}/unlock`);
   } catch (error) {
-    if (error instanceof Error) {
-    // Re-throw the error for the caller to handle
-      console.log(`Failed to fetch unlock status: ${error.message}`);  
-      throw new Error(`Failed to fetch unlock status: ${error.message}`);
-    } else {
-      console.log('OH NO');
-      throw new Error('Failed bad error');
-    }
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    console.error(`Failed to unlock the door: ${errorMessage}`);
+    throw new Error(`Failed to unlock the door: ${errorMessage}`);
   }
 }

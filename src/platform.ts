@@ -60,7 +60,7 @@ export class AndrewFrontDoorLockHomebridgePlatform implements DynamicPlatformPlu
     const exampleDevices = [
       {
         exampleUniqueId: 'andrew-front-door-lock',
-        exampleDisplayName: 'Andrew Front Door Lock',
+        exampleDisplayName: 'Front Gate',
       },
     ];
 

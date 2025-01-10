@@ -1,121 +1,117 @@
-import { Characteristic, type CharacteristicValue, type PlatformAccessory, type Service } from 'homebridge';
-// import axios from 'axios';
-// import { HttpClient } from './httpClient.js';
-import axios from 'axios';
-import { fetchUnlockStatus, unlockDoor } from './httpClient.js';
+import { type CharacteristicValue, type PlatformAccessory, type Service } from 'homebridge';
+import { getActualDoorStatus, unlockDoor } from './httpClient.js';
 import type { AndrewFrontDoorLockHomebridgePlatform } from './platform.js';
-
 
 export class AndrewFrontDoorLockHomebridgePlatformAccessory {
   private service: Service;
-  // private httpClient: HttpClient;
 
   constructor(
     private readonly platform: AndrewFrontDoorLockHomebridgePlatform,
     private readonly accessory: PlatformAccessory,
   ) {
-    // set accessory information
+    // Set accessory information
     this.accessory.getService(this.platform.Service.AccessoryInformation)!
       .setCharacteristic(this.platform.Characteristic.Manufacturer, 'Default-Manufacturer')
       .setCharacteristic(this.platform.Characteristic.Model, 'Default-Model')
       .setCharacteristic(this.platform.Characteristic.SerialNumber, 'Default-Serial');
 
-    this.service = this.accessory.getService(this.platform.Service.LockMechanism) || this.accessory.addService(this.platform.Service.LockMechanism);
+    // Get or create the LockMechanism service
+    this.service = this.accessory.getService(this.platform.Service.LockMechanism)
+      || this.accessory.addService(this.platform.Service.LockMechanism);
+
     this.service.setCharacteristic(this.platform.Characteristic.Name, accessory.context.device.exampleDisplayName);
 
-    // register handlers for the On/Off Characteristic
+    // Register handlers for LockCurrentState
     this.service.getCharacteristic(this.platform.Characteristic.LockCurrentState)
-      .onGet(this.getLockState.bind(this)); // SET - bind to the `setOn` method below
+      .onGet(this.getCurrentState.bind(this));
 
-    // register handlers for the Brightness Characteristic
+    // Register handlers for LockTargetState
     this.service.getCharacteristic(this.platform.Characteristic.LockTargetState)
-      .onGet(this.getLockState.bind(this)) 
-      .onSet(this.unlockDoor.bind(this));
+      .onGet(this.getTargetState.bind(this))
+      .onSet(this.setTargetState.bind(this));
 
-    // this.httpClient = new HttpClient('http://10.0.0.138:5000');
-
-    setInterval(() => {
-      console.log('DOING OUR OWN GET!');
-      const resp = axios.get('http://10.0.0.138:5000/get_status');
-      resp.then(r => {
-        if (typeof r.data !== 'object' || r.data === null) {
-          throw new Error('Response data is not an object');
-        }
-
-        console.log(`OWN | D is ${r.data}`);
-        console.log(`OWN | DU is ${r.data.unlocked}`);
-        console.log(`OWN | typeof ${typeof r.data.unlocked}`);
-        const { unlocked } = r.data.unlocked;
-        const unlockedVal = unlocked === 'true' ? true : false;
-        console.log(`retValue ${unlockedVal}`);
-
-        if (unlockedVal === true) {
-          console.log('UNLOCKED WAS TRUE');
-          this.service.updateCharacteristic(this.platform.Characteristic.LockCurrentState, this.platform.Characteristic.LockCurrentState.UNSECURED);
-          this.service.updateCharacteristic(this.platform.Characteristic.LockTargetState, this.platform.Characteristic.LockTargetState.UNSECURED);
-        } else if (unlockedVal === false) {
-          console.log('UNLOCKED WAS FALSE');
-          this.service.updateCharacteristic(this.platform.Characteristic.LockCurrentState, this.platform.Characteristic.LockCurrentState.SECURED);
-          this.service.updateCharacteristic(this.platform.Characteristic.LockTargetState, this.platform.Characteristic.LockTargetState.SECURED);
-        }
-
-        
-      });
-    }, 10000);
-  
+    // Start polling for the lock state every 500ms
+    this.startPolling();
   }
-
-  
-
 
   /**
-   * Handle "SET" requests from HomeKit
-   * These are sent when the user changes the state of an accessory, for example, turning on a Light bulb.
+   * Start polling the lock state every 500ms.
    */
-  async getLockState(): Promise<CharacteristicValue> {
-    console.log(`[${new Date().toISOString()}] NEW GET LOCK STATE`);
-    try {
-      const resp = await fetchUnlockStatus();
-      let status = this.platform.Characteristic.LockCurrentState.UNSECURED;
-      if (resp === true) {
-        console.log('UNLOCKED WAS TRUE');
-        status = this.platform.Characteristic.LockCurrentState.UNSECURED;
-      } else if (resp === false) {
-        console.log('UNLOCKED WAS FALSE');
-        status = this.platform.Characteristic.LockCurrentState.SECURED;
+  private startPolling(): void {
+    const pollInterval = 500;
+
+    const pollState = async (): Promise<void> => {
+      try {
+        const status = await this.getCurrentState();
+        console.log(`[${new Date().toISOString()}] | POLL | Status is ${status}`);
+
+        // Update both target and current state
+        this.service.updateCharacteristic(this.platform.Characteristic.LockTargetState, status);
+        this.service.updateCharacteristic(this.platform.Characteristic.LockCurrentState, status);
+
+        // Schedule the next poll
+        setTimeout(pollState, pollInterval);
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        console.error(`[${new Date().toISOString()}] | POLL | Failed to poll: ${errorMessage}`);
       }
-      console.log(`Door status: ${status}`);
+    };
+
+    pollState();
+  }
+
+  /**
+   * Get the current state of the lock.
+   */
+  async getCurrentState(): Promise<CharacteristicValue> {
+    try {
+      console.log(`[${new Date().toISOString()}] | MAIN | Getting current state.`);
+      const status = await getActualDoorStatus();
+      console.log(`[${new Date().toISOString()}] | MAIN | Current state is ${status}`);
       return status;
     } catch (error) {
-      if (error instanceof Error) {
-        // Now TypeScript knows `error` is an instance of `Error`
-        console.log(`ERROR ${error.message}`);
-        const status = this.platform.Characteristic.LockCurrentState.UNKNOWN;
-        return status;
-      } else {
-        console.log(`ERROR ${error}`);
-        const status = this.platform.Characteristic.LockCurrentState.UNKNOWN;
-        return status;
-      }
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      console.error(`[${new Date().toISOString()}] | MAIN | Failed to get current state: ${errorMessage}`);
+      throw new Error(`[${new Date().toISOString()}] | MAIN | Failed to get current state: ${errorMessage}`);
     }
   }
 
-  async unlockDoor(value: CharacteristicValue) {
-    try {
-      this.service.updateCharacteristic(this.platform.Characteristic.LockTargetState, this.platform.Characteristic.LockTargetState.UNSECURED);
-      unlockDoor();
-      this.service.updateCharacteristic(this.platform.Characteristic.LockCurrentState, this.platform.Characteristic.LockCurrentState.UNSECURED);
-      this.service.updateCharacteristic(this.platform.Characteristic.LockCurrentState, this.platform.Characteristic.LockTargetState.SECURED);
-      this.service.updateCharacteristic(this.platform.Characteristic.LockTargetState, this.platform.Characteristic.LockCurrentState.SECURED);
-      console.log('Door unlocked');
-    } catch (error) {
-      if (error instanceof Error) {
-        // Now TypeScript knows `error` is an instance of `Error`
-        console.log(`ERROR ${error.message}`);
-      } else {
-        console.log(`ERROR ${error}`);
+  /**
+   * Update the current state of the lock.
+   */
+  async setCurrentState(value: CharacteristicValue): Promise<void> {
+    console.log(`[${new Date().toISOString()}] | MAIN | Setting current state to ${value}`);
+    this.service.updateCharacteristic(this.platform.Characteristic.LockCurrentState, value);
+  }
+
+  /**
+   * Get the target state of the lock.
+   */
+  async getTargetState(): Promise<CharacteristicValue> {
+  // HomeKit already tracks the target state, no need for an instance variable
+    return this.service.getCharacteristic(this.platform.Characteristic.LockTargetState).value as CharacteristicValue;
+  }
+
+  /**
+   * Set the target state of the lock.
+   */
+  async setTargetState(value: CharacteristicValue): Promise<void> {
+    if (value === this.platform.Characteristic.LockTargetState.UNSECURED) {
+      console.log(`[${new Date().toISOString()}] | MAIN | Unlocking the door.`);
+      try {
+        await unlockDoor();
+        console.log(`[${new Date().toISOString()}] | MAIN | Door unlocked successfully.`);
+
+        // Update the current state to Unlocked
+        await this.setCurrentState(this.platform.Characteristic.LockCurrentState.UNSECURED);
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        console.error(`[${new Date().toISOString()}] | MAIN | Failed to unlock the door: ${errorMessage}`);
       }
+    } else if (value === this.platform.Characteristic.LockTargetState.SECURED) {
+      console.log(`[${new Date().toISOString()}] | MAIN | Locking the door.`);
+      // Update the current state to Locked
+      await this.setCurrentState(this.platform.Characteristic.LockCurrentState.SECURED);
     }
   }
-  
 }
