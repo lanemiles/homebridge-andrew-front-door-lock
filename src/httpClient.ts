@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const BASE_URL = 'http://73.162.135.162:5000';
+const BASE_URL = 'http://localhost:5000';
 const UNLOCKED = 0;
 const LOCKED = 1;
 
